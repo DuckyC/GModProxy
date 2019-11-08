@@ -7,13 +7,38 @@ namespace GSharp
 {
     public class ValveBuffer : IDisposable
     {
+        public enum ConnectionlessPacketType : byte
+        {
+            A2S_INFO_REQUEST = 0x54, // T
+            A2S_INFO_RESPONSE = 0x49, // I
+
+            A2S_PLAYER_REQUEST = 0x55, // U
+            A2S_PLAYER_RESPONSE = 0x44, // D
+
+            connectionrefused = 0x39, // 9
+
+            A2A_GETCHALLENGE = 0x41, //A
+            C2S_CONNECT = 0x6b, // k
+
+            S2C_CONNECTION = 0x42, // B
+
+            sendchallange = 0x71, // q
+        }
+
+
+        public const int NET_HEADER_FLAG_QUERY = -1;
+        public const int NET_HEADER_FLAG_SPLITPACKET = -2;
+        public const int NET_HEADER_FLAG_COMPRESSEDPACKET = -3;
+
+
+
         MemoryStream stream;
         BinaryWriter writer;
         BinaryReader reader;
 
-        public ValveBuffer(byte[] buffer)
+        public ValveBuffer(byte[] buffer, int offset, int size)
         {
-            stream = new MemoryStream(buffer);
+            stream = new MemoryStream(buffer, offset, size);
             reader = new BinaryReader(stream);
         }
 
@@ -48,7 +73,7 @@ namespace GSharp
         {
             var bytes = new List<byte>();
             var nextByte = reader.ReadByte();
-            while(nextByte != 0x00)
+            while (nextByte != 0x00)
             {
                 bytes.Add(nextByte);
                 nextByte = reader.ReadByte();

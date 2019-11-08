@@ -34,20 +34,26 @@ namespace GModProxy
         protected override void OnSent(EndPoint endpoint, long sent) => ReceiveAsync();
         protected override void OnError(SocketError error) => Console.WriteLine($"Proxy UDP server caught an error with code {error}");
 
-        protected override void OnReceived(EndPoint endpoint, byte[] buffer, long offset, long size)
+        protected override void OnReceived(EndPoint endpoint, byte[] rawBuffer, long offset, long size)
         {
-            switch (buffer[4])
+            var buffer = new ValveBuffer(rawBuffer, (int)offset, (int)size);
+            var header = buffer.ReadLong();
+
+            if (header == ValveBuffer.NET_HEADER_FLAG_QUERY)
             {
-                case ReplyInfoPacket.RequestType:
-                    var infoBytes = getInfoPacket(endpoint).GetPacket();
-                    Console.WriteLine("Sending fake A2S_INFO packet");
-                    SendAsync(endpoint, infoBytes, 0, infoBytes.Length);
-                    return;
-                case ReplyPlayerPacket.RequestType:
-                    var playerBytes = getPlayerPacket(endpoint).GetPacket();
-                    Console.WriteLine("Sending fake A2S_PLAYER packet");
-                    SendAsync(endpoint, playerBytes, 0, playerBytes.Length);
-                    return;
+                switch (rawBuffer[4])
+                {
+                    case ReplyInfoPacket.RequestType:
+                        var infoBytes = getInfoPacket(endpoint).GetPacket();
+                        Console.WriteLine("Sending fake A2S_INFO packet");
+                        SendAsync(endpoint, infoBytes, 0, infoBytes.Length);
+                        return;
+                    case ReplyPlayerPacket.RequestType:
+                        var playerBytes = getPlayerPacket(endpoint).GetPacket();
+                        Console.WriteLine("Sending fake A2S_PLAYER packet");
+                        SendAsync(endpoint, playerBytes, 0, playerBytes.Length);
+                        return;
+                }
             }
 
             var key = endpoint.ToString();
@@ -55,6 +61,7 @@ namespace GModProxy
             {
                 client = new SRCDSClient(hostIPAddress, hostPort, (buffer, offset, size) =>
                 {
+                    Console.WriteLine("S2C=>" + BitConverter.ToString(buffer, (int)offset, (int)size));
                     SendAsync(endpoint, buffer, offset, size);
                 });
 
@@ -62,8 +69,8 @@ namespace GModProxy
                 clients.Add(key, client);
             }
 
-            //Console.WriteLine(Encoding.UTF8.GetString(buffer));
-            client.SendAsync(buffer, offset, size);
+            Console.WriteLine("C2S=>" + BitConverter.ToString(rawBuffer, (int)offset, (int)size));
+            client.SendAsync(rawBuffer, offset, size);
         }
     }
 }

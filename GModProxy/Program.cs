@@ -47,7 +47,7 @@ namespace GModProxy
             Console.WriteLine();
 
             // Create a new UDP Proxy server
-            var server = new SRCDSServerProxy(infoPacket.UDPPort, "5.103.47.123", 27015, (e)=>infoPacket, (e) => playerPacket);
+            var server = new SRCDSServerProxy(infoPacket.UDPPort, "172.19.176.1", 27016, (e)=>infoPacket, (e) => playerPacket);
 
             // Start the server
             Console.Write("Server starting...");
