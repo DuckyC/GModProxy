@@ -3,35 +3,39 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace GSharp
+namespace GModProxy
 {
+    public enum ConnectionlessPacketType : byte
+    {
+        A2S_INFO_REQUEST = 0x54, // T
+        A2S_INFO_RESPONSE = 0x49, // I
+
+        A2S_PLAYER_REQUEST = 0x55, // U
+        A2S_PLAYER_RESPONSE = 0x44, // D
+
+        connectionrefused = 0x39, // 9
+
+        A2A_GETCHALLENGE = 0x41, //A
+        C2S_CONNECT = 0x6b, // k
+
+        S2C_CONNECTION = 0x42, // B
+
+        sendchallange = 0x71, // q
+
+        INVALID = 0x00,
+    }
+
+
+    public enum NET_HEADER_FLAG : int
+    {
+        INVALID = 0,
+        QUERY = -1,
+        SPLITPACKET = -2,
+        COMPRESSEDPACKET = -3,
+    }
+
     public class ValveBuffer : IDisposable
     {
-        public enum ConnectionlessPacketType : byte
-        {
-            A2S_INFO_REQUEST = 0x54, // T
-            A2S_INFO_RESPONSE = 0x49, // I
-
-            A2S_PLAYER_REQUEST = 0x55, // U
-            A2S_PLAYER_RESPONSE = 0x44, // D
-
-            connectionrefused = 0x39, // 9
-
-            A2A_GETCHALLENGE = 0x41, //A
-            C2S_CONNECT = 0x6b, // k
-
-            S2C_CONNECTION = 0x42, // B
-
-            sendchallange = 0x71, // q
-        }
-
-
-        public const int NET_HEADER_FLAG_QUERY = -1;
-        public const int NET_HEADER_FLAG_SPLITPACKET = -2;
-        public const int NET_HEADER_FLAG_COMPRESSEDPACKET = -3;
-
-
-
         MemoryStream stream;
         BinaryWriter writer;
         BinaryReader reader;
@@ -48,8 +52,17 @@ namespace GSharp
             writer = new BinaryWriter(stream);
         }
 
+        public void Reset()
+        {
+            stream.Position = 0;
+        }
+
+        public long GetNumBitsRead() => stream.Position;
+
         public void WriteByte(byte val) => writer.Write(val);
         public byte ReadByte() => reader.ReadByte();
+
+        public byte[] ReadBytes(int count) => reader.ReadBytes(count);
 
         public void WriteShort(short val) => writer.Write(val);
         public short ReadShort() => reader.ReadInt16();
@@ -80,6 +93,26 @@ namespace GSharp
             }
 
             return Encoding.UTF8.GetString(bytes.ToArray());
+        }
+
+        public NET_HEADER_FLAG ReadHeaderFlag()
+        {
+            var flag = ReadLong();
+            if (Enum.IsDefined(typeof(NET_HEADER_FLAG), flag))
+            {
+                return (NET_HEADER_FLAG)flag;
+            }
+            return NET_HEADER_FLAG.INVALID;
+        }
+
+        public ConnectionlessPacketType ReadConnectionlessPacketType()
+        {
+            var type = ReadByte();
+            if (Enum.IsDefined(typeof(ConnectionlessPacketType), type))
+            {
+                return (ConnectionlessPacketType)type;
+            }
+            return ConnectionlessPacketType.INVALID;
         }
 
         public byte[] ToArray()

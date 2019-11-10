@@ -1,10 +1,8 @@
-﻿using GSharp;
-using NetCoreServer;
+﻿using NetCoreServer;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace GModProxy
 {
@@ -37,18 +35,16 @@ namespace GModProxy
         protected override void OnReceived(EndPoint endpoint, byte[] rawBuffer, long offset, long size)
         {
             var buffer = new ValveBuffer(rawBuffer, (int)offset, (int)size);
-            var header = buffer.ReadLong();
-
-            if (header == ValveBuffer.NET_HEADER_FLAG_QUERY)
+            if (buffer.ReadHeaderFlag() == NET_HEADER_FLAG.QUERY)
             {
-                switch (rawBuffer[4])
+                switch (buffer.ReadConnectionlessPacketType())
                 {
-                    case ReplyInfoPacket.RequestType:
+                    case ConnectionlessPacketType.A2S_INFO_REQUEST:
                         var infoBytes = getInfoPacket(endpoint).GetPacket();
                         Console.WriteLine("Sending fake A2S_INFO packet");
                         SendAsync(endpoint, infoBytes, 0, infoBytes.Length);
                         return;
-                    case ReplyPlayerPacket.RequestType:
+                    case ConnectionlessPacketType.A2S_PLAYER_REQUEST:
                         var playerBytes = getPlayerPacket(endpoint).GetPacket();
                         Console.WriteLine("Sending fake A2S_PLAYER packet");
                         SendAsync(endpoint, playerBytes, 0, playerBytes.Length);
@@ -59,17 +55,45 @@ namespace GModProxy
             var key = endpoint.ToString();
             if (!clients.TryGetValue(key, out SRCDSClient client))
             {
-                client = new SRCDSClient(hostIPAddress, hostPort, (buffer, offset, size) =>
+                client = new SRCDSClient(hostIPAddress, hostPort, (rawBuffer, offset, size) =>
                 {
-                    Console.WriteLine("S2C=>" + BitConverter.ToString(buffer, (int)offset, (int)size));
-                    SendAsync(endpoint, buffer, offset, size);
+                    var temp = new ValveBuffer(rawBuffer, (int)offset, (int)size);
+                    var header = temp.ReadHeaderFlag();
+
+                    if (header == NET_HEADER_FLAG.SPLITPACKET)
+                    {
+                        var netid = temp.ReadLong();
+                        var sequenceNumber = temp.ReadLong();
+                        var packetIDAndSplitSize = temp.ReadLong();
+
+                        var packetID = (packetIDAndSplitSize & 0xFFFF0000) >> 4;
+                        var splitSize = (packetIDAndSplitSize & 0x0000FFFF);
+
+                        Console.WriteLine("S2C=>Splitpacket");
+                        SendAsync(endpoint, rawBuffer, offset, size);
+                        return;
+                    }
+
+                    var parsingBuffer = rawBuffer;
+                    if(header == NET_HEADER_FLAG.COMPRESSEDPACKET)
+                    {
+                        size = LZSS.Decompress(rawBuffer, (int)size, out byte[] outputBuffer);
+                        parsingBuffer = outputBuffer;
+                    }
+
+                    var parsed = ValvePacketHandler.HandlePacket(parsingBuffer, offset, size);
+                    Console.WriteLine("S2C=>" + (parsed ?? "Other"));
+
+
+                    SendAsync(endpoint, rawBuffer, offset, size);
                 });
 
                 client.Connect();
                 clients.Add(key, client);
             }
 
-            Console.WriteLine("C2S=>" + BitConverter.ToString(rawBuffer, (int)offset, (int)size));
+            var parsed = ValvePacketHandler.HandlePacket(rawBuffer, offset, size);
+            Console.WriteLine("C2S=>" + (parsed ?? BitConverter.ToString(rawBuffer, (int)offset, (int)size)));
             client.SendAsync(rawBuffer, offset, size);
         }
     }

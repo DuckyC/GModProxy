@@ -1,8 +1,5 @@
-﻿using GSharp;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Threading;
 
 namespace GModProxy
 {
@@ -24,7 +21,7 @@ namespace GModProxy
             Passworded = false,
             Secure = false,
             Server = ReplyInfoPacket.ServerType.Dedicated,
-            UDPPort = 27017,
+            UDPPort = 27016,
             SteamID = 0,
             Tags = "gm:sandbox"
 
@@ -47,7 +44,7 @@ namespace GModProxy
             Console.WriteLine();
 
             // Create a new UDP Proxy server
-            var server = new SRCDSServerProxy(infoPacket.UDPPort, "172.19.176.1", 27016, (e)=>infoPacket, (e) => playerPacket);
+            var server = new SRCDSServerProxy(infoPacket.UDPPort, "192.168.0.208", 27015, (e)=>infoPacket, (e) => playerPacket);
 
             // Start the server
             Console.Write("Server starting...");
